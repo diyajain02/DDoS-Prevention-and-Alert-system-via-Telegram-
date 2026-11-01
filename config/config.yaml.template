@@ -1,0 +1,311 @@
+# Light-SOC Configuration
+# Lightweight Wazuh alternative with NGFW capabilities + AI-powered reporting
+# COPY THIS FILE TO config.yaml AND FILL IN YOUR VALUES
+
+general:
+  name: "light-soc"
+  version: "0.1.0"
+  log_level: "INFO"
+  data_dir: "/opt/data/light-soc"
+  reports_dir: "/opt/data/light-soc/reports"
+  blocked_ips_dir: "/opt/data/light-soc/blocked_ips"
+  logs_dir: "/opt/data/light-soc/logs"
+
+# Log ingestion sources
+log_sources:
+  - name: "ssh-auth"
+    type: "file"
+    path: "/var/log/auth.log"
+    parser: "ssh_auth"
+    enabled: true
+  # Add more sources as needed:
+  # - name: "nginx-access"
+  #   type: "file"
+  #   path: "/var/log/nginx/access.log"
+  #   parser: "nginx_access"
+  #   enabled: false
+  # - name: "syslog"
+  #   type: "file"
+  #   path: "/var/log/syslog"
+  #   parser: "syslog"
+  #   enabled: false
+
+# Detection rules (extendable)
+rules:
+  ssh_bruteforce:
+    enabled: true
+    max_failures: 5
+    time_window_seconds: 300  # 5 minutes
+    block_duration_seconds: 3600  # 1 hour
+    severity: "HIGH"
+  ssh_invalid_user:
+    enabled: true
+    max_attempts: 10
+    time_window_seconds: 600
+    block_duration_seconds: 1800
+    severity: "MEDIUM"
+  ssh_root_login_attempt:
+    enabled: true
+    max_attempts: 3
+    time_window_seconds: 300
+    block_duration_seconds: 7200
+    severity: "CRITICAL"
+
+# AI Analyzer (Ollama local LLM)
+ai_analyzer:
+  enabled: true
+  provider: "ollama"
+  model: "llama3.1:8b"  # or mistral, codellama, etc.
+  base_url: "http://localhost:11434"
+  timeout_seconds: 120
+  temperature: 0.1
+  max_tokens: 2048
+  # Prompt template for incident analysis
+  system_prompt: |
+    You are a Tier-1 SOC Analyst. Analyze the provided log entries and produce a structured incident report.
+    Output ONLY valid JSON with these fields:
+    {
+      "incident_type": "string (e.g., SSH Brute-Force, Privilege Escalation, Invalid User Enumeration)",
+      "severity": "string (LOW, MEDIUM, HIGH, CRITICAL)",
+      "attacker_ip": "string",
+      "targeted_usernames": ["string"],
+      "timeline": [{"timestamp": "ISO8601", "event": "string", "details": "string"}],
+      "total_attempts": "integer",
+      "successful": "boolean",
+      "recommended_mitigation": ["string"],
+      "confidence": "float (0.0-1.0)"
+    }
+
+# Blocking engine
+blocker:
+  enabled: true
+  backend: "nftables"  # or "iptables"
+  chain_name: "light-soc-block"
+  table_name: "inet light-soc"
+  # Whitelist - never block these IPs/CIDRs
+  whitelist:
+    - "127.0.0.1/32"
+    - "::1/128"
+    - "10.0.0.0/8"
+    - "172.16.0.0/12"
+    - "192.168.0.0/16"
+  # Auto-unblock after duration (seconds), 0 = permanent until manual removal
+  auto_unblock: true
+  default_block_duration: 3600
+
+# Reporting
+reporting:
+  enabled: true
+  formats: ["markdown", "json", "html"]
+  # Retention in days
+  retention_days: 30
+  # Include raw log snippets in report
+  include_raw_logs: true
+  max_log_lines_per_report: 50
+
+# Alerting Configuration
+alerting:
+  enabled: true
+  webhook:
+    enabled: false
+    url: ""  # Set your webhook URL here (Slack, Discord, Teams, PagerDuty, custom)
+    timeout: 10
+    retry_count: 3
+  email:
+    enabled: false
+    smtp_host: "smtp.gmail.com"
+    smtp_port: 587
+    username: ""
+    password: ""
+    from_email: ""
+    to_emails: []
+    use_tls: true
+  telegram:
+    enabled: false
+    bot_token: ""  # Get from @BotFather
+    chat_id: ""    # Get from @userinfobot or group
+    parse_mode: "HTML"
+  # Alert severity thresholds
+  min_severity: "MEDIUM"  # Only alert on MEDIUM and above
+  # Cooldown to prevent alert spam
+  cooldown_seconds: 300
+
+# File Integrity Monitoring (FIM)
+fim:
+  enabled: true
+  scan_interval_seconds: 300  # 5 minutes
+  monitored_paths:
+    - "/etc/passwd"
+    - "/etc/shadow"
+    - "/etc/group"
+    - "/etc/sudoers"
+    - "/etc/ssh/sshd_config"
+    - "/etc/crontab"
+    - "/etc/hosts"
+    - "/etc/fstab"
+    - "/boot/grub/grub.cfg"
+    - "/bin"
+    - "/sbin"
+    - "/usr/bin"
+    - "/usr/sbin"
+    - "/lib"
+    - "/lib64"
+  excluded_paths:
+    - "/proc"
+    - "/sys"
+    - "/dev"
+    - "/run"
+    - "/tmp"
+    - "/var/log"
+    - "/var/cache"
+    - "/var/lib/docker"
+  recursive: true
+  follow_symlinks: false
+  alert_on_permissions: true
+  alert_on_ownership: true
+
+# Vulnerability Detection
+vulnerability_detection:
+  enabled: true
+  scan_interval_hours: 24
+  package_managers: "auto"  # auto-detect or list: ["apt", "rpm", "pip", "npm", "docker"]
+  cve_sources: ["nvd", "ubuntu", "debian", "redhat"]
+  cache_ttl_hours: 24
+  severity_threshold: "MEDIUM"  # Only alert on MEDIUM and above
+
+# Security Configuration Assessment (SCA)
+sca:
+  enabled: true
+  benchmark: "CIS"  # CIS, NIST, custom
+  benchmark_version: "2.0.0"
+  scan_interval_hours: 24
+  severity_threshold: "MEDIUM"  # Only alert on MEDIUM and above
+  custom_rules_path: ""  # Path to custom rules JSON
+
+# Agent (for distributed deployment)
+agent:
+  enabled: false  # Set to true on endpoint machines
+  manager_host: "127.0.0.1"
+  manager_port: 8443
+  use_ssl: true
+  auto_register: true
+  heartbeat_interval: 30
+  reconnect_interval: 10
+  # Commands allowed from manager
+  allowed_commands:
+    - "fim_scan"
+    - "vuln_scan"
+    - "sca_scan"
+    - "collect_logs"
+    - "block_ip"
+    - "unblock_ip"
+    - "get_status"
+    - "restart"
+
+# Agent Manager (central server)
+agent_manager:
+  enabled: false  # Set to true on central manager
+  host: "0.0.0.0"
+  port: 8443
+  cert_path: "/opt/data/light-soc/certs/server.pem"
+  key_path: "/opt/data/light-soc/certs/server.key"
+
+# Network Inspection / IPS
+network_inspection:
+  enabled: false  # Requires root and raw socket access
+  interface: "any"
+  bpf_filter: ""
+  promiscuous: true
+  snaplen: 65535
+  # Custom rules can be added programmatically
+
+# Threat Intelligence Feeds
+threat_intelligence:
+  enabled: true
+  cache_dir: "/opt/data/light-soc/threat_intel"
+  # Feeds are configured programmatically with defaults
+  # Custom feeds can be added via API
+  auto_update: true
+  update_interval_hours: 1
+  confidence_threshold: 70  # Only use indicators with confidence >= this
+  severity_threshold: "MEDIUM"
+
+# DDoS Detection and Prevention
+ddos:
+  enabled: true
+  rules:
+    syn_flood:
+      enabled: true
+      pps_threshold: 100
+      syn_threshold: 100
+      window: 10
+      block_duration: 3600
+      auto_block: true
+      severity: "HIGH"
+    udp_flood:
+      enabled: true
+      pps_threshold: 500
+      udp_threshold: 500
+      window: 10
+      block_duration: 3600
+      auto_block: true
+      severity: "HIGH"
+    icmp_flood:
+      enabled: true
+      pps_threshold: 200
+      icmp_threshold: 200
+      window: 10
+      block_duration: 3600
+      auto_block: true
+      severity: "MEDIUM"
+    http_flood:
+      enabled: true
+      req_threshold: 200
+      cps_threshold: 50
+      concurrent_threshold: 500
+      window: 10
+      block_duration: 3600
+      auto_block: true
+      severity: "HIGH"
+    slowloris:
+      enabled: true
+      conn_threshold: 50
+      timeout: 30
+      concurrent_threshold: 100
+      window: 60
+      block_duration: 7200
+      auto_block: true
+      severity: "HIGH"
+    dns_amplification:
+      enabled: true
+      query_threshold: 500
+      bps_threshold: 50000000
+      window: 10
+      block_duration: 3600
+      auto_block: true
+      severity: "HIGH"
+    volumetric:
+      enabled: true
+      bps_threshold: 100000000
+      pps_threshold: 10000
+      window: 10
+      block_duration: 3600
+      auto_block: true
+      severity: "CRITICAL"
+    connection_exhaustion:
+      enabled: true
+      concurrent_threshold: 1000
+      cps_threshold: 200
+      window: 60
+      block_duration: 3600
+      auto_block: true
+      severity: "HIGH"
+
+# Integration: Feed blocker with threat intel
+integration:
+  threat_intel_to_blocker: true  # Auto-block high-confidence threat intel IPs
+  fim_to_detection: true  # Send FIM alerts to detection engine
+  vuln_to_detection: true  # Send vuln alerts to detection engine
+  sca_to_detection: true  # Send SCA failures to detection engine
+  ips_to_detection: true  # Send IPS alerts to detection engine
+  threat_intel_to_ips: true  # Feed threat intel IPs to IPS rules

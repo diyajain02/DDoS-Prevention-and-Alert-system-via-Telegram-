@@ -1,0 +1,51 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+light_soc.egg-info/
+
+# Configuration with secrets
+config.yaml
+*.pem
+*.key
+*.crt
+
+# Logs and data
+logs/
+*.log
+blocked_ips/
+reports/
+threat_intel/
+cve_cache/
+fim_baseline.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test files
+test_*.py
+.pytest_cache/
+.coverage
+
+# UV
+uv.lock
+
+# Deploy scripts (if they contain secrets)
+deploy-*.sh
