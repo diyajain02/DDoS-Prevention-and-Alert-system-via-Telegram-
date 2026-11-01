@@ -176,17 +176,42 @@ Dashboard features:
 
 ## Telegram Bot Setup (2 minutes)
 
-1. Message `@BotFather` → `/newbot` → name it → copy **bot_token**
-2. Message your bot → `/start`
-3. Visit `https://api.telegram.org/bot<TOKEN>/getUpdates` → find `"chat":{"id":123456789}`
-4. Add to `config.yaml`:
-   ```yaml
-   alerting:
-     telegram:
-       enabled: true
-       bot_token: "123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
-       chat_id: "123456789"
-   ```
+### Step 1: Create Bot & Get Token
+1. Open Telegram → search **`@BotFather`**
+2. Send: `/newbot`
+3. Name it: `Light-SOC Alerts` (or whatever you prefer)
+4. Username: `light_soc_alerts_bot` (must end in `bot`)
+5. **Copy the `bot_token`** (format: `123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ`)
+
+### Step 2: Get Chat ID
+**Option A: Personal notifications (recommended for testing)**
+1. Message your new bot (click the link BotFather gave you)
+2. Send `/start`
+3. Open browser: `https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates`
+4. Find `"chat":{"id":123456789,...}` → **copy that number** (positive integer)
+
+**Option B: Group/Channel (for team alerts)**
+1. Create a group → add your bot
+2. Send a message in the group
+3. Check `https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates`
+4. Find `"chat":{"id":-1001234567890,...}` → **copy the negative number** (groups have negative IDs)
+
+### Step 3: Configure
+Edit `config/config.yaml`:
+```yaml
+alerting:
+  telegram:
+    enabled: true
+    bot_token: "123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"  # From Step 1
+    chat_id: "123456789"                                 # From Step 2
+    parse_mode: "HTML"
+```
+
+### Step 4: Test
+```bash
+light-soc --alert-status
+# Should show "telegram: true" under channels
+```
 
 ## DDoS Attack Types Detected
 
